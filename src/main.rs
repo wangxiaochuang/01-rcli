@@ -1,3 +1,12 @@
-fn main() {
-    println!("Hello, rustx!");
+use anyhow::Result;
+use clap::Parser;
+use rcli::{process_csv, Opts, SubCommand};
+
+fn main() -> Result<()> {
+    let opts = Opts::parse();
+    match opts.cmd {
+        SubCommand::Csv(ref opts) => process_csv(&opts.input, &opts.output)?,
+    };
+
+    Ok(())
 }
