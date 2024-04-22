@@ -1,5 +1,9 @@
 use anyhow::Result;
-use std::path::Path;
+use std::{
+    fmt::{Display, Formatter},
+    path::Path,
+    str::FromStr,
+};
 
 use clap::{command, Parser, Subcommand};
 
@@ -16,13 +20,21 @@ pub enum SubCommand {
     Csv(CsvOpts),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum OutputFormat {
+    Json,
+    Yaml,
+}
 #[derive(Debug, Parser)]
 pub struct CsvOpts {
     #[arg(short, long, value_parser = verify_input_file)]
     pub input: String,
 
-    #[arg(short, long, default_value = "output.json")]
-    pub output: String,
+    #[arg(short, long)]
+    pub output: Option<String>,
+
+    #[arg(long, value_parser = parse_format, default_value = "json")]
+    pub format: OutputFormat,
 
     #[arg(short, long, default_value_t = ',')]
     delimiter: char,
@@ -36,5 +48,35 @@ fn verify_input_file(filename: &str) -> Result<String, &'static str> {
         Ok(filename.into())
     } else {
         Err("File does not exist")
+    }
+}
+
+fn parse_format(format: &str) -> Result<OutputFormat, &'static str> {
+    format.parse()
+}
+
+impl From<&OutputFormat> for &'static str {
+    fn from(value: &OutputFormat) -> Self {
+        match value {
+            OutputFormat::Json => "json",
+            OutputFormat::Yaml => "yaml",
+        }
+    }
+}
+impl FromStr for OutputFormat {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "json" => Ok(Self::Json),
+            "yaml" => Ok(Self::Yaml),
+            _ => Err("Invalid format"),
+        }
+    }
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Into::<&str>::into(self))
     }
 }
