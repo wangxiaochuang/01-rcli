@@ -50,6 +50,7 @@ pub fn process_genpass(
     password.shuffle(rng);
     let password = String::from_utf8(password)?;
     let score = zxcvbn(&password, &[])?;
-    println!("pass: {}\nscore: {}\n", password, score.score());
+    // 只打印到错误输出
+    eprintln!("pass: {}\nscore: {}\n", password, score.score());
     Ok(())
 }
