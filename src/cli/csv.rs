@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use clap::{Parser, ValueEnum};
 
-use super::verify_input_file;
+use super::verify_file;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputFormat {
@@ -21,7 +21,7 @@ impl Display for OutputFormat {
 
 #[derive(Debug, Parser)]
 pub struct CsvOpts {
-    #[arg(short, long, value_parser = verify_input_file)]
+    #[arg(short, long, value_parser = verify_file)]
     pub input: String,
 
     #[arg(short, long)]
