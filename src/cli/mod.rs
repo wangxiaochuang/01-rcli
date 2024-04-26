@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use clap::{command, Parser, Subcommand};
 
+use crate::CmdExector;
+
 pub use self::text::TextSubCommand;
 use self::{csv::CsvOpts, genpass::GenPassOpts};
 
@@ -23,18 +25,36 @@ pub struct Opts {
     pub cmd: SubCommand,
 }
 
+impl CmdExector for Opts {
+    async fn execute(self) -> anyhow::Result<()> {
+        self.cmd.execute().await
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub enum SubCommand {
     #[command(name = "csv", about = "Show CSV, or convert CSV to other formats")]
     Csv(CsvOpts),
     #[command(name = "genpass", about = "Generate a random password")]
     GenPass(GenPassOpts),
-    #[command(subcommand)]
+    #[command(subcommand, about = "Base64 encode or decode")]
     Base64(Base64SubCommand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "Text sign or verify")]
     Text(TextSubCommand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "HTTP server")]
     Http(HttpSubCommand),
+}
+
+impl CmdExector for SubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            SubCommand::Csv(opts) => opts.execute().await,
+            SubCommand::GenPass(opts) => opts.execute().await,
+            SubCommand::Base64(subcmd) => subcmd.execute().await,
+            SubCommand::Text(subcmd) => subcmd.execute().await,
+            SubCommand::Http(subcmd) => subcmd.execute().await,
+        }
+    }
 }
 
 fn verify_file(filename: &str) -> Result<String, &'static str> {

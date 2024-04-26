@@ -1,5 +1,7 @@
 use clap::{arg, Parser, Subcommand, ValueEnum};
 
+use crate::{process_decode, process_encode, CmdExector};
+
 use super::verify_file;
 
 #[derive(Debug, Subcommand)]
@@ -18,6 +20,14 @@ pub struct Base64EncodeOpts {
     pub format: Base64Format,
 }
 
+impl CmdExector for Base64EncodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let encoded = process_encode(&self.input, self.format)?;
+        println!("{}", encoded);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Parser)]
 pub struct Base64DecodeOpts {
     #[arg(short, long,  value_parser = verify_file, default_value = "-")]
@@ -26,9 +36,27 @@ pub struct Base64DecodeOpts {
     pub format: Base64Format,
 }
 
+impl CmdExector for Base64DecodeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let decoded = process_decode(&self.input, self.format)?;
+        // TODO: assume decoded data is a string
+        println!("{}", String::from_utf8_lossy(&decoded));
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 #[value(rename_all = "lowercase")]
 pub enum Base64Format {
     Standard,
     UrlSafe,
+}
+
+impl CmdExector for Base64SubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            Self::Encode(opts) => opts.execute().await,
+            Self::Decode(opts) => opts.execute().await,
+        }
+    }
 }

@@ -2,12 +2,21 @@ use std::path::PathBuf;
 
 use clap::{arg, Parser, Subcommand};
 
+use crate::{process_http_serve, CmdExector};
+
 use super::verify_path;
 
 #[derive(Debug, Subcommand)]
 pub enum HttpSubCommand {
     #[command(about = "Serve a directory over HTTP")]
     Serve(HttpServeOpts),
+}
+impl CmdExector for HttpSubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            HttpSubCommand::Serve(opts) => opts.execute().await,
+        }
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -16,4 +25,10 @@ pub struct HttpServeOpts {
     pub dir: PathBuf,
     #[arg(short, long, default_value = "8080")]
     pub port: u16,
+}
+
+impl CmdExector for HttpServeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        process_http_serve(self.dir.clone(), self.port).await
+    }
 }
