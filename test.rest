@@ -1,7 +1,11 @@
 ### test index
 
-GET http://localhost:8888/../answer/01-rcli/deny.toml HTTP/1.1
+GET http://localhost:8080/../answer/01-rcli/deny.toml HTTP/1.1
 
 ### Test static file with tower-http
 
-GET http://localhost:8888/tower/fixtures/ed25519.pk HTTP/1.1
+GET http://localhost:8080/Cargo.toml HTTP/1.1
+
+### Test static directory with tower-http
+
+GET http://localhost:8080/src HTTP/1.1

@@ -4,7 +4,10 @@ use clap::{arg, Parser, Subcommand, ValueEnum};
 use enum_dispatch::enum_dispatch;
 use tokio::fs;
 
-use crate::{process_text_generate, process_text_sign, process_text_verify, CmdExector};
+use crate::{
+    process_text_decrypt, process_text_encrypt, process_text_generate, process_text_sign,
+    process_text_verify, CmdExector,
+};
 
 use super::{verify_file, verify_path};
 
@@ -17,6 +20,10 @@ pub enum TextSubCommand {
     Verify(TextVerifyOpts),
     #[command(about = "generate a new key")]
     Generate(TextKeyGenerateOpts),
+    #[command(about = "encrypt a message by chacha20")]
+    Encrypt(TextEncryptOpts),
+    #[command(about = "decrypt a message by chacha20")]
+    Decrypt(TextDecryptOpts),
 }
 
 #[derive(Debug, Parser)]
@@ -85,6 +92,38 @@ impl CmdExector for TextKeyGenerateOpts {
                 fs::write(name.join("ed25519.pk"), &key[1]).await?;
             }
         };
+        Ok(())
+    }
+}
+
+#[derive(Debug, Parser)]
+pub struct TextEncryptOpts {
+    #[arg(short, long, value_parser = verify_file, default_value = "-")]
+    pub input: String,
+    #[arg(short, long)]
+    pub key: String,
+}
+
+impl CmdExector for TextEncryptOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let enc = process_text_encrypt(&self.input, &self.key)?;
+        println!("{}", enc);
+        Ok(())
+    }
+}
+
+#[derive(Debug, Parser)]
+pub struct TextDecryptOpts {
+    #[arg(short, long, value_parser = verify_file, default_value = "-")]
+    pub input: String,
+    #[arg(short, long)]
+    pub key: String,
+}
+
+impl CmdExector for TextDecryptOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let dec = process_text_decrypt(&self.input, &self.key)?;
+        println!("{}", dec);
         Ok(())
     }
 }

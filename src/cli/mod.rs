@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{command, Parser, Subcommand};
 use enum_dispatch::enum_dispatch;
+use regex::Regex;
 
 use crate::CmdExector;
 
@@ -9,13 +10,17 @@ pub use self::base64::{Base64DecodeOpts, Base64EncodeOpts};
 pub use self::csv::CsvOpts;
 pub use self::genpass::GenPassOpts;
 pub use self::http::HttpServeOpts;
-pub use self::text::TextSubCommand;
-pub use self::text::{TextKeyGenerateOpts, TextSignOpts, TextVerifyOpts};
+pub use self::jwt::{JwtSignOpts, JwtSubCommand, JwtVerifyOpts};
+pub use self::text::{
+    TextDecryptOpts, TextEncryptOpts, TextKeyGenerateOpts, TextSignOpts, TextSubCommand,
+    TextVerifyOpts,
+};
 
 mod base64;
 mod csv;
 mod genpass;
 mod http;
+mod jwt;
 mod text;
 
 pub use self::base64::{Base64Format, Base64SubCommand};
@@ -49,6 +54,8 @@ pub enum SubCommand {
     Text(TextSubCommand),
     #[command(subcommand, about = "HTTP server")]
     Http(HttpSubCommand),
+    #[command(subcommand, about = "jwt sign or verify")]
+    Jwt(JwtSubCommand),
 }
 
 fn verify_file(filename: &str) -> Result<String, &'static str> {
@@ -68,6 +75,29 @@ fn verify_path(path: &str) -> Result<PathBuf, &'static str> {
     }
 }
 
+fn parse_duration(duration: &str) -> Result<u64, &'static str> {
+    let re = Regex::new(r"(\d+)([smhdw]?)").unwrap();
+    if let Some(captures) = re.captures(duration) {
+        let duration = captures.get(1).unwrap().as_str();
+        let unit = captures.get(2).unwrap().as_str();
+        let errf = |_| "invalid duration string";
+        match unit {
+            "" => duration.parse::<u64>().map_err(errf),
+            "s" => duration.parse::<u64>().map_err(errf),
+            "m" => duration.parse::<u64>().map(|x| x * 60).map_err(errf),
+            "h" => duration.parse::<u64>().map(|x| x * 3600).map_err(errf),
+            "d" => duration.parse::<u64>().map(|x| x * 3600 * 24).map_err(errf),
+            "w" => duration
+                .parse::<u64>()
+                .map(|x| x * 3600 * 24 * 7)
+                .map_err(errf),
+            _ => Err("unsupported unit"),
+        }
+    } else {
+        Err("invalid duration string")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,5 +107,15 @@ mod tests {
         assert_eq!(verify_file("-"), Ok("-".into()));
         assert_eq!(verify_file("Cargo.toml"), Ok("Cargo.toml".into()));
         assert_eq!(verify_file("not-exist"), Err("File does not exist"));
+    }
+
+    #[test]
+    fn test_parse_duration() {
+        assert_eq!(parse_duration("10"), Ok(10));
+        assert_eq!(parse_duration("10s"), Ok(10));
+        assert_eq!(parse_duration("10m"), Ok(600));
+        assert_eq!(parse_duration("10h"), Ok(36000));
+        assert_eq!(parse_duration("10d"), Ok(864000));
+        assert_eq!(parse_duration("10w"), Ok(6048000));
     }
 }

@@ -1,6 +1,10 @@
 use std::{fs, io::Read, path::Path};
 
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+use chacha20poly1305::{
+    aead::{Aead, KeyInit},
+    ChaCha20Poly1305, Nonce,
+};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 
@@ -12,6 +16,11 @@ pub trait TextSign {
 
 pub trait TextVerify {
     fn verify(&self, reader: impl Read, sig: &[u8]) -> anyhow::Result<bool>;
+}
+
+pub trait TextCipher {
+    fn encrypt(&self, reader: impl Read) -> anyhow::Result<String>;
+    fn decrypt(&self, reader: impl Read) -> anyhow::Result<String>;
 }
 
 pub trait KeyLoader {
@@ -34,6 +43,11 @@ pub struct Ed25519Signer {
 
 pub struct Ed25519Verifier {
     key: VerifyingKey,
+}
+
+pub struct Chacha20poly1305Cipher {
+    key: [u8; 32],
+    nonce: [u8; 12],
 }
 
 pub fn process_text_sign(input: &str, key: &str, format: TextSignFormat) -> anyhow::Result<String> {
@@ -82,6 +96,18 @@ pub fn process_text_generate(format: TextSignFormat) -> anyhow::Result<Vec<Vec<u
     }
 }
 
+pub fn process_text_encrypt(input: &str, key: &str) -> anyhow::Result<String> {
+    let mut reader = get_reader(input)?;
+    let cipher = Chacha20poly1305Cipher::load(key)?;
+    cipher.encrypt(reader.by_ref())
+}
+
+pub fn process_text_decrypt(input: &str, key: &str) -> anyhow::Result<String> {
+    let mut reader = get_reader(input)?;
+    let cipher = Chacha20poly1305Cipher::load(key)?;
+    cipher.decrypt(&mut reader)
+}
+
 impl KeyLoader for Blake3 {
     fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let key = fs::read_to_string(path)?;
@@ -115,6 +141,54 @@ impl TextVerify for Blake3 {
         let hash = blake3::keyed_hash(&self.key, &buf);
         let hash = hash.as_bytes();
         Ok(hash == sig)
+    }
+}
+
+impl TextCipher for Chacha20poly1305Cipher {
+    fn encrypt(&self, mut reader: impl Read) -> anyhow::Result<String> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let nonce = Nonce::from_slice(&self.nonce);
+        let cipher = ChaCha20Poly1305::new_from_slice(&self.key)?;
+        cipher
+            .encrypt(nonce, buf.as_ref())
+            .map(|cipher| STANDARD_NO_PAD.encode(cipher))
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    fn decrypt(&self, mut reader: impl Read) -> anyhow::Result<String> {
+        let mut encrypted = String::new();
+        reader.read_to_string(&mut encrypted)?;
+        let encrypted = STANDARD_NO_PAD.decode(encrypted)?;
+
+        let nonce = Nonce::from_slice(&self.nonce);
+        let cipher = ChaCha20Poly1305::new_from_slice(&self.key)?;
+        cipher
+            .decrypt(nonce, encrypted.as_ref())
+            .map(|plain| String::from_utf8(plain).unwrap())
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+}
+
+impl KeyLoader for Chacha20poly1305Cipher {
+    fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let key = fs::read_to_string(path)?;
+        let key = key.trim();
+        let nonce = blake3::hash(key.as_bytes()).as_bytes().to_vec();
+        Chacha20poly1305Cipher::try_new(key.as_bytes(), &nonce[..12])
+    }
+}
+
+impl Chacha20poly1305Cipher {
+    fn new(key: [u8; 32], nonce: [u8; 12]) -> Self {
+        Self { key, nonce }
+    }
+
+    fn try_new(key: &[u8], nonce: &[u8]) -> anyhow::Result<Self> {
+        Ok(Self::new(
+            key.try_into().unwrap(),
+            nonce.try_into().unwrap(),
+        ))
     }
 }
 
